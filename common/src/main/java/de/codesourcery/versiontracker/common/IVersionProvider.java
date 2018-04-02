@@ -49,14 +49,22 @@ public interface IVersionProvider
         ERROR
     }
     
+    public static enum Mode 
+    {
+        UPDATE_ALL,
+        FETCH_RELEASE_DATE_ONLY
+    }
+    
     /**
      * Try to update version information.
      * 
      * This method must be <b>thread-safe</b>.
      * 
      * @param info
+     * @param versionNumber version to look up release date for
+     * 
      * @return 
      * @throws IOException 
      */
-    public UpdateResult update(VersionInfo info) throws IOException;
+    public UpdateResult update(VersionInfo info,String versionNumber) throws IOException;
 }

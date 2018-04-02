@@ -37,7 +37,6 @@ import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.IVersionProvider;
 import de.codesourcery.versiontracker.common.IVersionStorage;
 import de.codesourcery.versiontracker.common.VersionInfo;
-import de.codesourcery.versiontracker.common.server.SharedLockCache.ThrowingRunnable;
 
 /**
  * This class is responsible for requesting and periodically refreshing artifact metadata as well
@@ -104,26 +103,28 @@ public class VersionTracker implements AutoCloseable
 
         for ( Artifact artifact : artifacts ) 
         {
-            final ThrowingRunnable runnable = () -> 
-            {
-                final Optional<VersionInfo> result = versionStorage.getVersionInfo( artifact );
-                if( ! result.isPresent() || isOutdated.test( result ) ) 
-                {
-                    LOG.debug("getVersionInfo(): Got "+(result.isPresent()? "outdated":"no")+" metadata for "+artifact+" yet,fetching it");
-                    updateArtifact(artifact, resultMap, stopLatch, now, isOutdated);                    
-                } else {
-                    LOG.debug("getVersionInfo(): Got "+result.get());
-
-                    synchronized(resultMap) {
-                        resultMap.put(artifact,result.get());
-                    }
-                    versionStorage.updateLastRequestDate(artifact,now);
-                }                
-            };
             try 
             {
-                lockCache.doWhileLocked( artifact, runnable);
-            } catch (Exception e) {
+                lockCache.doWhileLocked( artifact, () -> 
+                {
+                    final Optional<VersionInfo> result = versionStorage.getVersionInfo( artifact );
+                    if ( ! result.isPresent() || isOutdated.test( result ) || ! result.get().hasVersionWithReleaseDate( artifact.version ) ) 
+                    {
+                        LOG.debug("getVersionInfo(): Got "+(result.isPresent()? "only outdated/incomplete":"no")+" metadata for "+artifact+", fetching it");
+                        updateArtifact(artifact, resultMap, stopLatch, now, isOutdated);                    
+                    } 
+                    else 
+                    {
+                        LOG.debug("getVersionInfo(): Got "+result.get());
+
+                        synchronized(resultMap) {
+                            resultMap.put(artifact,result.get());
+                        }
+                        versionStorage.updateLastRequestDate(artifact,now);
+                    }                
+                });
+            } 
+            catch (Exception e) {
                 LOG.error("getVersionInfo(): Caught unexpected exception "+e.getMessage()+" while handling "+artifact,e);
             }
         }
@@ -134,7 +135,7 @@ public class VersionTracker implements AutoCloseable
     private void updateArtifact(Artifact artifact, final Map<Artifact, VersionInfo> resultMap,final DynamicLatch stopLatch, final ZonedDateTime now, Predicate<Optional<VersionInfo>> isOutdated) throws IOException 
     {
         final Optional<VersionInfo> result = versionStorage.getVersionInfo( artifact );
-        if ( result.isPresent() && ! isOutdated.test( result ) ) 
+        if ( result.isPresent() && ! isOutdated.test( result ) && result.get().hasVersionWithReleaseDate( artifact.version ) ) 
         {
             LOG.debug("updateArtifact(): Got "+result.get());
 
@@ -152,37 +153,38 @@ public class VersionTracker implements AutoCloseable
             LOG.debug("updateArtifact(): Got no or outdated metadata for "+artifact+" yet,fetching ...");
             submit( () -> 
             {
-                final ThrowingRunnable whileLocked = () -> 
-                {
-                    try 
-                    {
-                        final VersionInfo newInfo; 
-                        if ( result.isPresent() ) 
-                        {
-                            newInfo = result.get();
-                            newInfo.lastRequestDate = now;
-                        } else {
-                            newInfo = new VersionInfo();
-                            newInfo.creationDate = ZonedDateTime.now();
-                            newInfo.artifact = artifact;
-                            newInfo.lastRequestDate = ZonedDateTime.now();
-                        }
-                        synchronized(resultMap) {
-                            resultMap.put(artifact,newInfo);
-                        }                             
-                        versionProvider.update( newInfo );
-                        versionStorage.saveOrUpdate( newInfo );
-                    } catch (IOException e) {
-                    	if ( LOG.isDebugEnabled() ) {
-                    		LOG.error("updateArtifact(): Caught "+e.getMessage()+" while updating "+artifact,e);
-                    	} else {
-                    		LOG.error("updateArtifact(): Caught "+e.getMessage()+" while updating "+artifact+": "+e.getMessage());
-                    	}
-                    } 
-                };
                 try 
                 {
-                    lockCache.doWhileLocked(artifact,whileLocked);
+                    lockCache.doWhileLocked(artifact,() -> 
+                    {
+                        try 
+                        {
+                            final VersionInfo newInfo; 
+                            if ( result.isPresent() ) 
+                            {
+                                newInfo = result.get();
+                                newInfo.lastRequestDate = now;
+                            } else {
+                                newInfo = new VersionInfo();
+                                newInfo.creationDate = ZonedDateTime.now();
+                                newInfo.artifact = artifact;
+                                newInfo.lastRequestDate = ZonedDateTime.now();
+                            }
+                            synchronized(resultMap) {
+                                resultMap.put(artifact,newInfo);
+                            }                             
+                            versionProvider.update( newInfo, artifact.version );
+                            versionStorage.saveOrUpdate( newInfo );
+                        } 
+                        catch (IOException e) 
+                        {
+                        	if ( LOG.isDebugEnabled() ) {
+                        		LOG.error("updateArtifact(): Caught "+e.getMessage()+" while updating "+artifact,e);
+                        	} else {
+                        		LOG.error("updateArtifact(): Caught "+e.getMessage()+" while updating "+artifact+": "+e.getMessage());
+                        	}
+                        } 
+                    });
                 } catch (Exception e) {
                     LOG.error("updateArtifact(): Caught "+e.getMessage()+" while updating "+artifact,e);
                 } finally {

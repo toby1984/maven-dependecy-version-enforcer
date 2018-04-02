@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.junit.After;
@@ -31,6 +32,7 @@ import org.junit.Test;
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.IVersionProvider;
 import de.codesourcery.versiontracker.common.IVersionStorage;
+import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.common.VersionInfo;
 import de.codesourcery.versiontracker.common.server.BackgroundUpdater;
 import de.codesourcery.versiontracker.common.server.SharedLockCache;
@@ -101,7 +103,7 @@ public class VersionTrackerTest
         final IVersionProvider provider = new IVersionProvider() {
 
             @Override
-            public UpdateResult update(VersionInfo info) throws IOException
+            public UpdateResult update(VersionInfo info,String versionNumber) throws IOException
             {
                 info.lastFailureDate = ZonedDateTime.now();
                 return UpdateResult.BLACKLISTED;

@@ -21,6 +21,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
+import org.apache.commons.lang3.StringUtils;
+
 /**
  * Maven artifact coordinates.
  *
@@ -133,6 +135,10 @@ public class Artifact
         return false;
     }
 
+    public boolean hasVersionNumber() {
+        return StringUtils.isNotBlank(this.version);
+    }
+    
     public boolean hasSnapshotVersion() {
         return isSnapshotVersion(this.version);
     }

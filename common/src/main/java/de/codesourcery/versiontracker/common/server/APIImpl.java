@@ -255,7 +255,11 @@ public class APIImpl implements AutoCloseable
                 } 
                 catch (Exception e) 
                 {
-
+                    if ( LOG.isDebugEnabled() ) {
+                        LOG.error("processQuery(): Failed to update "+info+": "+e.getMessage());
+                    } else {
+                        LOG.error("processQuery(): Failed to update "+info+": "+e.getMessage(),e);
+                    }
                 }
             }
 
@@ -287,7 +291,8 @@ public class APIImpl implements AutoCloseable
                 else 
                 {
                     final Optional<Version> currentVersion = info.getDetails( artifact.version );
-                    if ( currentVersion.isPresent() ) {
+                    if ( currentVersion.isPresent() ) 
+                    {
                         x.currentVersion = currentVersion.get();
                     }
 

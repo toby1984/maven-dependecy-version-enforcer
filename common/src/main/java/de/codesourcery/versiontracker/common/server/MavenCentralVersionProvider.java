@@ -164,7 +164,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
         VersionInfo data = new VersionInfo();
         data.artifact = test;
         long start = System.currentTimeMillis();
-        final UpdateResult result = new MavenCentralVersionProvider().update( data );
+        final UpdateResult result = new MavenCentralVersionProvider().update( data, null );
         long end = System.currentTimeMillis();
         System.out.println("TIME: "+(end-start)+" ms");
         System.out.println("RESULT: "+result);
@@ -257,7 +257,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
     }    
 
     @Override
-    public UpdateResult update(VersionInfo info) throws IOException
+    public UpdateResult update(VersionInfo info,String versionNumber) throws IOException
     {
         final Artifact artifact = info.artifact;
         final URL url = new URL( serverBase+metaDataPath( artifact ) );
@@ -287,17 +287,15 @@ public class MavenCentralVersionProvider implements IVersionProvider
                     
                     // always look for release date of specified version
                     // as we'll need to compare against this later anway
-                    final Set<String> versionsToRequest = info.versions.stream().filter( v -> ! v.hasReleaseDate() ).map( x -> x.versionString ).collect( 
-                            Collectors.toCollection( HashSet::new ) );
+                    final Set<String> versionsToRequest = new HashSet<>();
                             
-                    if ( StringUtils.isNotBlank(artifact.version) ) 
+                    if ( StringUtils.isNotBlank(versionNumber) ) 
                     {
-                        if ( ! info.getDetails( artifact.version).isPresent() ) 
+                        if ( ! info.getDetails( versionNumber ).isPresent() ) 
                         {
-                        	info.lastFailureDate = ZonedDateTime.now();
-                            LOG.error("update(): metadata xml contained no version '"+artifact.version+"' for artifact "+info.artifact);
-                            return UpdateResult.ARTIFACT_NOT_FOUND;
+                            LOG.debug("update(): metadata xml contained no version '"+artifact.version+"' for artifact "+info.artifact);
                         }
+                        versionsToRequest.add(versionNumber);
                     }
                     
                     // determine latest snapshot version 
@@ -307,10 +305,10 @@ public class MavenCentralVersionProvider implements IVersionProvider
                     LOG.debug("latest snapshot = "+snapshot);
                     LOG.debug("update(): latest release = "+release);                    
                     
-                    if ( StringUtils.isNotBlank(snapshot) && info.hasVersionWithReleaseDate(snapshot) ) {
+                    if ( StringUtils.isNotBlank(snapshot) && ! info.hasVersionWithReleaseDate(snapshot) ) {
                         versionsToRequest.add(snapshot);
                     }
-                    if ( StringUtils.isNotBlank(release) && info.hasVersionWithReleaseDate(release) ) {
+                    if ( StringUtils.isNotBlank(release) && ! info.hasVersionWithReleaseDate(release) ) {
                         versionsToRequest.add(release);
                     }                
                     

@@ -404,16 +404,6 @@ public class DependencyAgeRule implements EnforcerRule
                 fail("Failed to query version information from '"+apiEndpoint+"': "+e.getMessage(),e);
                 throw new RuntimeException("Unreachable code reached");
             } 
-            finally 
-            {
-                try {
-                    client.close();
-                } 
-                catch(Exception e) 
-                {
-                    log.error("Failed to close API client: ",e);
-                }
-            }
             boolean failBecauseAgeExceeded = false;
             boolean artifactsNotFound = false;
             ZonedDateTime oldestOffendingRelease = null;
